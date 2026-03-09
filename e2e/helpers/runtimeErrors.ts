@@ -23,3 +23,13 @@ export async function expectNoRuntimeErrors(page: Page, errors: string[]) {
     })
     .toEqual([])
 }
+
+export async function expectNoFatalErrorUi(page: Page) {
+  await expect(page.locator('text=Something went wrong!')).toHaveCount(0)
+  await expect(page.locator('text=Hide Error')).toHaveCount(0)
+}
+
+export async function expectHealthyPage(page: Page, errors: string[]) {
+  await expectNoFatalErrorUi(page)
+  await expectNoRuntimeErrors(page, errors)
+}
