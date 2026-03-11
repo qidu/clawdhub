@@ -13,7 +13,7 @@ import {
 } from './lib/skillQuality'
 import { generateSkillSummary } from './lib/skillSummary'
 import { computeIsSuspicious } from './lib/skillSafety'
-import { extractDigestFields } from './lib/skillSearchDigest'
+import { extractDigestFields, syncSkillSearchDigest } from './lib/skillSearchDigest'
 import { hashSkillFiles } from './lib/skills'
 
 const DEFAULT_BATCH_SIZE = 50
@@ -126,6 +126,7 @@ export const applySkillBackfillPatchInternal = internalMutation({
     const now = Date.now()
     if (typeof args.summary === 'string') {
       await ctx.db.patch(args.skillId, { summary: args.summary, updatedAt: now })
+      await syncSkillSearchDigest(ctx, args.skillId)
     }
     if (args.parsed) {
       await ctx.db.patch(args.versionId, { parsed: args.parsed })
@@ -629,6 +630,7 @@ export const applySkillBadgeBackfillPatchInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.skillId, { badges: args.badges ?? undefined, updatedAt: Date.now() })
+    await syncSkillSearchDigest(ctx, args.skillId)
     return { ok: true as const }
   },
 })
@@ -655,6 +657,7 @@ export const upsertSkillBadgeRecordInternal = internalMutation({
           [args.kind]: { byUserId: args.byUserId, at: args.at },
         },
       })
+      await syncSkillSearchDigest(ctx, args.skillId)
     }
 
     const existing = await ctx.db
@@ -1044,6 +1047,7 @@ export const applyEmptySkillCleanupInternal = internalMutation({
       },
       updatedAt: now,
     })
+    await syncSkillSearchDigest(ctx, skill._id)
 
     await ctx.db.insert('auditLogs', {
       actorUserId: skill.ownerUserId,
@@ -1518,6 +1522,7 @@ export const backfillDenormalizedBadgesInternal = internalMutation({
 
       if (needsPatch) {
         await ctx.db.patch(skill._id, { badges: canonical })
+        await syncSkillSearchDigest(ctx, skill._id)
         patched++
       }
     }
@@ -1619,6 +1624,7 @@ export const backfillIsSuspiciousInternal = internalMutation({
       const expected = computeIsSuspicious(skill)
       if (skill.isSuspicious !== expected) {
         await ctx.db.patch(skill._id, { isSuspicious: expected })
+        await syncSkillSearchDigest(ctx, skill._id)
         patched++
       }
     }

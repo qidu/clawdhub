@@ -5,9 +5,11 @@ import type { QueryCtx } from './_generated/server'
 import { action, internalQuery } from './_generated/server'
 import { isSkillHighlighted } from './lib/badges'
 import { generateEmbedding } from './lib/embeddings'
+import type { HydratableSkill } from './lib/public'
 import { toPublicSkill, toPublicSoul, toPublicUser } from './lib/public'
 import { matchesExactTokens, tokenize } from './lib/searchText'
 import { isSkillSuspicious } from './lib/skillSafety'
+import { digestToHydratableSkill } from './lib/skillSearchDigest'
 
 type OwnerInfo = { handle: string | null; owner: ReturnType<typeof toPublicUser> | null }
 
@@ -239,8 +241,8 @@ export const hydrateResults = internalQuery({
           .query('skillSearchDigest')
           .withIndex('by_skill', (q) => q.eq('skillId', skillId))
           .unique()
-        const skill = digest
-          ? ({ ...digest, _id: digest.skillId, _creationTime: digest.createdAt } as unknown as Doc<'skills'>)
+        const skill: HydratableSkill | null = digest
+          ? digestToHydratableSkill(digest)
           : await ctx.db.get(skillId)
         if (!skill || skill.softDeletedAt) return null
         if (args.nonSuspiciousOnly && isSkillSuspicious(skill)) return null
