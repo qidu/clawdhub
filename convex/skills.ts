@@ -2709,10 +2709,18 @@ export const listPublicPageV4 = query({
     const dir = args.dir ?? (sort === 'name' ? 'asc' : 'desc')
     const numItems = clampInt(args.numItems ?? 25, 1, MAX_PUBLIC_LIST_LIMIT)
 
-    const startIndexKey = args.cursor ? decodeIndexKey(args.cursor) : undefined
     const indexName = args.nonSuspiciousOnly
       ? NONSUSPICIOUS_SORT_INDEXES[sort]
       : SORT_INDEXES[sort]
+
+    // Equality prefix constrains getPage to active (non-deleted) rows.
+    // Without this, getPage walks the entire index including soft-deleted items.
+    const eqPrefix: IndexKey = args.nonSuspiciousOnly
+      ? [undefined, false]
+      : [undefined]
+
+    const isFirstPage = !args.cursor
+    const startIndexKey = isFirstPage ? eqPrefix : decodeIndexKey(args.cursor!)
 
     // For highlightedOnly, over-fetch since it's a JS filter
     const fetchSize = args.highlightedOnly ? numItems * 2 : numItems
@@ -2722,13 +2730,16 @@ export const listPublicPageV4 = query({
     const accepted: DigestWithKey[] = []
     let hasMore = false
     let lastFetchKey = startIndexKey
+    let lastFetchInclusive = isFirstPage
 
     // Fetch up to 2 rounds (second only needed for highlightedOnly under-fill)
     for (let round = 0; round < 2; round++) {
       const result = await getPage(ctx, {
         table: 'skillSearchDigest',
         startIndexKey: lastFetchKey,
-        startInclusive: false,
+        startInclusive: lastFetchInclusive,
+        endIndexKey: eqPrefix,
+        endInclusive: true,
         targetMaxRows: fetchSize,
         order: dir,
         index: indexName,
@@ -2755,6 +2766,7 @@ export const listPublicPageV4 = query({
       if (!args.highlightedOnly) break
 
       lastFetchKey = result.indexKeys[result.indexKeys.length - 1]
+      lastFetchInclusive = false
     }
 
     // Trim to requested size
