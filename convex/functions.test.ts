@@ -278,6 +278,140 @@ describe("package digest sync", () => {
     );
   });
 
+  it("repoints bundle packages to the newest surviving release, not semver-looking versions", async () => {
+    const pkg = {
+      _id: "packages:bundle",
+      _creationTime: 1,
+      name: "demo-bundle",
+      normalizedName: "demo-bundle",
+      displayName: "Demo Bundle",
+      family: "bundle-plugin",
+      channel: "community",
+      isOfficial: false,
+      ownerUserId: "users:owner",
+      summary: "latest summary",
+      tags: {
+        latest: "packageReleases:bundle-latest",
+      },
+      latestReleaseId: "packageReleases:bundle-latest",
+      latestVersionSummary: { version: "latest" },
+      capabilityTags: ["new"],
+      executesCode: false,
+      compatibility: { hosts: ["openclaw"] },
+      capabilities: { capabilityTags: ["new"], executesCode: false },
+      verification: { tier: "community" },
+      runtimeId: "bundle.runtime",
+      softDeletedAt: undefined,
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    const semverLookingRelease = {
+      _id: "packageReleases:bundle-semver",
+      _creationTime: 10,
+      packageId: "packages:bundle",
+      version: "2.0.0",
+      changelog: "older semver",
+      summary: "older semver summary",
+      compatibility: { hosts: ["openclaw"] },
+      capabilities: { capabilityTags: ["semver"], executesCode: false },
+      verification: { tier: "verified" },
+      distTags: ["legacy"],
+      createdAt: 10,
+      softDeletedAt: undefined,
+    };
+    const newestRelease = {
+      _id: "packageReleases:bundle-newest",
+      _creationTime: 20,
+      packageId: "packages:bundle",
+      version: "2024-12",
+      changelog: "newest bundle build",
+      summary: "newest bundle summary",
+      compatibility: { hosts: ["openclaw"] },
+      capabilities: { capabilityTags: ["bundle"], executesCode: false },
+      verification: { tier: "verified" },
+      distTags: ["release-2024-12"],
+      createdAt: 20,
+      softDeletedAt: undefined,
+    };
+    const owner = {
+      _id: "users:owner",
+      handle: "owner",
+      deletedAt: undefined,
+      deactivatedAt: undefined,
+    };
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "packages:bundle") return pkg;
+          if (id === "packageReleases:bundle-newest") return newestRelease;
+          if (id === "users:owner") return owner;
+          return null;
+        }),
+        query: vi.fn((table: string) => {
+          if (table === "packageReleases") {
+            return {
+              withIndex: vi.fn(() => ({
+                order: vi.fn(() => ({
+                  paginate: vi.fn().mockResolvedValue({
+                    page: [newestRelease, semverLookingRelease],
+                    isDone: true,
+                    continueCursor: "",
+                  }),
+                })),
+              })),
+            };
+          }
+          if (table === "packageSearchDigest") {
+            return {
+              withIndex: vi.fn(() => ({
+                unique: vi.fn().mockResolvedValue(null),
+                collect: vi.fn().mockResolvedValue([]),
+              })),
+            };
+          }
+          if (table === "packageCapabilitySearchDigest") {
+            return {
+              withIndex: vi.fn(() => ({
+                unique: vi.fn().mockResolvedValue(null),
+                collect: vi.fn().mockResolvedValue([]),
+              })),
+            };
+          }
+          throw new Error(`Unexpected table ${table}`);
+        }),
+        patch: vi.fn(),
+        insert: vi.fn(),
+        delete: vi.fn(),
+      },
+    };
+
+    await repointPackageLatestRelease(
+      ctx as never,
+      "packages:bundle" as never,
+      "packageReleases:bundle-latest" as never,
+    );
+
+    expect(ctx.db.patch).toHaveBeenCalledWith("packageReleases:bundle-newest", {
+      distTags: ["release-2024-12", "latest"],
+    });
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      "packages:bundle",
+      expect.objectContaining({
+        latestReleaseId: "packageReleases:bundle-newest",
+        tags: { latest: "packageReleases:bundle-newest" },
+        latestVersionSummary: expect.objectContaining({ version: "2024-12" }),
+        summary: "newest bundle summary",
+      }),
+    );
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      "packageSearchDigest",
+      expect.objectContaining({
+        latestVersion: "2024-12",
+        ownerHandle: "owner",
+      }),
+    );
+  });
+
   it("re-syncs package digests when an owner handle changes", async () => {
     const owner = {
       _id: "users:owner",

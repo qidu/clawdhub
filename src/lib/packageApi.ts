@@ -213,6 +213,7 @@ export async function fetchPackageReadme(name: string, version?: string | null) 
     if (version) url.searchParams.set("version", version);
     const response = await packageFetch(url, "text/plain");
     if (response.ok) return await response.text();
+    if (response.status !== 404) throw new Error(await response.text());
   }
   return null;
 }

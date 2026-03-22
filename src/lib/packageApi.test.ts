@@ -244,6 +244,16 @@ describe("fetchPackages", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("throws when README fetch fails for reasons other than 404", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("rate limited", { status: 429 }));
+
+    await expect(fetchPackageReadme("demo-plugin", "1.0.0")).rejects.toThrow("rate limited");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("builds same-origin package download paths", () => {
     expect(getPackageDownloadPath("private-plugin", "1.0.0")).toBe(
       "/api/v1/packages/private-plugin/download?version=1.0.0",

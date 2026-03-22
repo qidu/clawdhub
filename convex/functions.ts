@@ -49,7 +49,15 @@ function toPackageLatestVersionSummary(
   };
 }
 
-function compareFallbackReleases(a: LatestPackageRelease, b: LatestPackageRelease) {
+function compareFallbackReleases(
+  family: Doc<"packages">["family"],
+  a: LatestPackageRelease,
+  b: LatestPackageRelease,
+) {
+  if (family === "bundle-plugin") {
+    if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    return a._id.localeCompare(b._id);
+  }
   const aSemver = semver.valid(a.version);
   const bSemver = semver.valid(b.version);
   if (aSemver && bSemver) return semver.compare(aSemver, bSemver);
@@ -62,6 +70,7 @@ function compareFallbackReleases(a: LatestPackageRelease, b: LatestPackageReleas
 async function getPreferredFallbackPackageRelease(
   ctx: PackageDigestSyncCtx,
   packageId: Id<"packages">,
+  family: Doc<"packages">["family"],
 ): Promise<LatestPackageRelease | null> {
   let cursor: string | null = null;
   let best: LatestPackageRelease | null = null;
@@ -85,7 +94,7 @@ async function getPreferredFallbackPackageRelease(
         verification: release.verification,
         distTags: release.distTags,
       };
-      if (!best || compareFallbackReleases(candidate, best) > 0) best = candidate;
+      if (!best || compareFallbackReleases(family, candidate, best) > 0) best = candidate;
     }
     if (page.isDone) return best;
     cursor = page.continueCursor;
@@ -164,7 +173,7 @@ export async function repointPackageLatestRelease(
   }
 
   const nextLatest = latestPointerAffected
-    ? await getPreferredFallbackPackageRelease(ctx, packageId)
+    ? await getPreferredFallbackPackageRelease(ctx, packageId, pkg.family)
     : null;
   if (latestPointerAffected && nextLatest && !(nextLatest.distTags ?? []).includes("latest")) {
     await ctx.db.patch(nextLatest._id, {
