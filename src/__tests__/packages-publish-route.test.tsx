@@ -91,6 +91,17 @@ describe("plugins publish route", () => {
     expect(route.__path).toBe("/publish-plugin");
   });
 
+  it("keeps metadata inputs locked until plugin code is uploaded", () => {
+    renderPublishRoute();
+
+    expect(screen.getByText(/Upload plugin code to detect the package shape/i)).toBeTruthy();
+    expect(screen.getByPlaceholderText("Plugin name").getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByPlaceholderText("Display name").getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByPlaceholderText("Version").getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByPlaceholderText("Changelog").getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Publish" }).getAttribute("disabled")).not.toBeNull();
+  });
+
   it("publishes a code plugin folder with source metadata and normalized file paths", async () => {
     renderPublishRoute();
 
@@ -101,6 +112,7 @@ describe("plugins publish route", () => {
             name: "demo-plugin",
             displayName: "Demo Plugin",
             version: "1.2.3",
+            repository: "https://github.com/openclaw/demo-plugin.git",
           }),
         ],
         "package.json",
@@ -123,13 +135,12 @@ describe("plugins publish route", () => {
       expect(screen.getByDisplayValue("demo-plugin")).toBeTruthy();
       expect(screen.getByDisplayValue("Demo Plugin")).toBeTruthy();
       expect(screen.getByDisplayValue("1.2.3")).toBeTruthy();
+      expect(screen.getByDisplayValue("openclaw/demo-plugin")).toBeTruthy();
+      expect(screen.getByPlaceholderText("Plugin name").getAttribute("disabled")).toBeNull();
     });
 
     fireEvent.change(screen.getByPlaceholderText("Changelog"), {
       target: { value: "Initial release" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Source repo (owner/repo)"), {
-      target: { value: "openclaw/demo-plugin" },
     });
     fireEvent.change(screen.getByPlaceholderText("Source commit"), {
       target: { value: "abc123" },
@@ -173,10 +184,6 @@ describe("plugins publish route", () => {
   it("publishes a bundle plugin folder with bundle metadata", async () => {
     renderPublishRoute();
 
-    fireEvent.change(screen.getAllByRole("combobox")[0], {
-      target: { value: "bundle-plugin" },
-    });
-
     const packageJson = withRelativePath(
       new File(
         [
@@ -184,6 +191,10 @@ describe("plugins publish route", () => {
             name: "demo-bundle",
             displayName: "Demo Bundle",
             version: "0.4.0",
+            openclaw: {
+              bundleFormat: "openclaw-bundle",
+              hostTargets: ["desktop", "mobile"],
+            },
           }),
         ],
         "package.json",
@@ -206,16 +217,15 @@ describe("plugins publish route", () => {
       expect(screen.getByDisplayValue("demo-bundle")).toBeTruthy();
       expect(screen.getByDisplayValue("Demo Bundle")).toBeTruthy();
       expect(screen.getByDisplayValue("0.4.0")).toBeTruthy();
+      expect((screen.getAllByRole("combobox")[0] as HTMLSelectElement).value).toBe("bundle-plugin");
+      expect(screen.getByDisplayValue("openclaw-bundle")).toBeTruthy();
+      expect(screen.getByDisplayValue("desktop, mobile")).toBeTruthy();
+      expect(screen.getByText(/Browse files/i)).toBeTruthy();
+      expect(screen.getByText(/Choose folder/i)).toBeTruthy();
     });
 
     fireEvent.change(screen.getByPlaceholderText("Changelog"), {
       target: { value: "Bundle release" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Bundle format"), {
-      target: { value: "openclaw-bundle" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Host targets (comma separated)"), {
-      target: { value: "desktop, mobile" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
