@@ -2,12 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import {
   AlertTriangle,
+  ArrowDownToLine,
   CheckCircle2,
   Clock,
+  GitBranch,
   Package,
   Plug,
   Plus,
   ShieldCheck,
+  Star,
   Upload,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -327,6 +330,7 @@ function PackageStatusTag({
 function PackageCard({ pkg, ownerHandle }: { pkg: DashboardPackage; ownerHandle: string }) {
   const scanLabel = scanStatusLabel(pkg.scanStatus);
   const nextVersion = pkg.latestVersion ? semver.inc(pkg.latestVersion, "patch") : null;
+  const sourceLabel = pkg.sourceRepo?.replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
   const scanTone =
     pkg.scanStatus === "pending"
       ? "pending"
@@ -347,13 +351,15 @@ function PackageCard({ pkg, ownerHandle }: { pkg: DashboardPackage; ownerHandle:
           : "default";
 
   return (
-    <div className="dashboard-skill-card">
-      <div className="dashboard-skill-info">
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+    <div className="dashboard-skill-card dashboard-package-card">
+      <div className="dashboard-skill-info dashboard-package-info">
+        <div className="dashboard-package-heading">
           <Link to="/plugins/$name" params={{ name: pkg.name }} className="dashboard-skill-name">
             {pkg.displayName}
           </Link>
           <span className="dashboard-skill-slug">{pkg.name}</span>
+        </div>
+        <div className="dashboard-package-tags">
           <PackageStatusTag label={familyLabel(pkg.family)} tone="default" />
           <PackageStatusTag label={pkg.channel} tone="default" />
           {scanLabel ? <PackageStatusTag label={scanLabel} tone={scanTone} /> : null}
@@ -368,8 +374,8 @@ function PackageCard({ pkg, ownerHandle }: { pkg: DashboardPackage; ownerHandle:
           ) : null}
         </div>
         {pkg.summary ? <p className="dashboard-skill-description">{pkg.summary}</p> : null}
-        <div className="dashboard-package-status">
-          <span>
+        <div className="dashboard-package-status-row">
+          <span className="dashboard-package-status-item">
             <ShieldCheck size={13} aria-hidden="true" />{" "}
             {releaseStatusLabel(
               "VT",
@@ -377,23 +383,52 @@ function PackageCard({ pkg, ownerHandle }: { pkg: DashboardPackage; ownerHandle:
               pkg.scanStatus === "pending" ? "pending" : "unknown",
             )}
           </span>
-          <span>
+          <span className="dashboard-package-status-item">
             <CheckCircle2 size={13} aria-hidden="true" />{" "}
             {releaseStatusLabel("LLM", pkg.latestRelease?.llmStatus)}
           </span>
-          <span>
+          <span className="dashboard-package-status-item">
             <AlertTriangle size={13} aria-hidden="true" />{" "}
             {releaseStatusLabel("Static", pkg.latestRelease?.staticScanStatus)}
           </span>
         </div>
-        <div className="dashboard-skill-stats">
-          <span>
-            <Package size={13} aria-hidden="true" /> {formatCompactStat(pkg.stats.downloads)}
-          </span>
-          <span>★ {formatCompactStat(pkg.stats.stars)}</span>
-          <span>{pkg.stats.versions} v</span>
-          <span>{pkg.latestVersion ? `latest ${pkg.latestVersion}` : "no latest tag"}</span>
-          {pkg.runtimeId ? <span>runtime {pkg.runtimeId}</span> : null}
+        <div className="dashboard-package-meta">
+          <DashboardMetaChip
+            icon={<ArrowDownToLine size={14} aria-hidden="true" />}
+            label="Downloads"
+            value={formatCompactStat(pkg.stats.downloads)}
+          />
+          <DashboardMetaChip
+            icon={<Star size={14} aria-hidden="true" />}
+            label="Stars"
+            value={formatCompactStat(pkg.stats.stars)}
+          />
+          <DashboardMetaChip
+            icon={<Package size={14} aria-hidden="true" />}
+            label="Versions"
+            value={String(pkg.stats.versions)}
+          />
+          <DashboardMetaChip
+            icon={<GitBranch size={14} aria-hidden="true" />}
+            label="Latest"
+            value={pkg.latestVersion ?? "No tag"}
+          />
+          {pkg.runtimeId ? (
+            <DashboardMetaChip
+              icon={<Plug size={14} aria-hidden="true" />}
+              label="Runtime"
+              value={pkg.runtimeId}
+              mono
+            />
+          ) : null}
+          {sourceLabel ? (
+            <DashboardMetaChip
+              icon={<ShieldCheck size={14} aria-hidden="true" />}
+              label="Source"
+              value={sourceLabel}
+              mono
+            />
+          ) : null}
         </div>
       </div>
       <div className="dashboard-skill-actions">
@@ -416,6 +451,30 @@ function PackageCard({ pkg, ownerHandle }: { pkg: DashboardPackage; ownerHandle:
           View
         </Link>
       </div>
+    </div>
+  );
+}
+
+function DashboardMetaChip({
+  icon,
+  label,
+  value,
+  mono = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="dashboard-meta-chip">
+      <span className="dashboard-meta-icon">{icon}</span>
+      <span className="dashboard-meta-copy">
+        <span className="dashboard-meta-label">{label}</span>
+        <span className={mono ? "dashboard-meta-value dashboard-meta-value-mono" : "dashboard-meta-value"}>
+          {value}
+        </span>
+      </span>
     </div>
   );
 }
