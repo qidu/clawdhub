@@ -75,25 +75,56 @@ function VerifiedBadge() {
   );
 }
 
+function fallbackCopy(text: string): boolean {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    const ok = document.execCommand("copy");
+    return ok;
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   return (
     <button
       type="button"
       className="btn btn-sm"
       style={{ flexShrink: 0 }}
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }).catch(() => {
-          // clipboard not available (permission denied or insecure context)
-        });
+        if (navigator.clipboard?.writeText) {
+          void navigator.clipboard.writeText(text).then(() => {
+            setState("copied");
+            setTimeout(() => setState("idle"), 2000);
+          }).catch(() => {
+            if (fallbackCopy(text)) {
+              setState("copied");
+              setTimeout(() => setState("idle"), 2000);
+            } else {
+              setState("failed");
+              setTimeout(() => setState("idle"), 2000);
+            }
+          });
+        } else if (fallbackCopy(text)) {
+          setState("copied");
+          setTimeout(() => setState("idle"), 2000);
+        } else {
+          setState("failed");
+          setTimeout(() => setState("idle"), 2000);
+        }
       }}
       aria-label="Copy to clipboard"
     >
-      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? "Copied" : "Copy"}
+      {state === "copied" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      {state === "copied" ? "Copied" : state === "failed" ? "Failed" : "Copy"}
     </button>
   );
 }
@@ -111,14 +142,18 @@ const CAPABILITY_LABELS: Record<string, string> = {
   commandNames: "Commands",
   serviceNames: "Services",
   capabilityTags: "Tags",
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }).catch(() => {
-          // clipboard not available; silently ignore or show an error
-        });
-      }}
+  httpRouteCount: "HTTP routes",
+  bundleFormat: "Bundle format",
+  hostTargets: "Host targets",
+};
+
+function formatCapabilityValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.length === 0 ? "None" : value.join(", ");
+  return JSON.stringify(value);
+}
 
 function isEmptyObject(obj: unknown): boolean {
   if (!obj || typeof obj !== "object") return true;
